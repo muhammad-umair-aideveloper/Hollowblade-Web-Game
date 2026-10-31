@@ -1,4 +1,5 @@
 export type AttackDirection = -1 | 1;
+export type EnemyKind = 'runner' | 'fast' | 'tank' | 'ranged' | 'boss';
 
 export interface EnemySnapshot {
   active: boolean;

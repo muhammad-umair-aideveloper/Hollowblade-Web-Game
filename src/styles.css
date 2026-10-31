@@ -93,6 +93,22 @@ button {
   font-size: 1.15rem;
 }
 
+.combo-value {
+  margin: 20px auto 0;
+  color: #7887a5;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-align: center;
+  transition:
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.combo-value.active {
+  color: #e4c8ff;
+  transform: scale(1.12);
+}
+
 #controls-hint {
   margin: 26px auto 0;
   color: #66718a;
