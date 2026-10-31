@@ -3,11 +3,19 @@ import type { AttackDirection } from './types';
 export class Input {
   private attackQueue: AttackDirection[] = [];
   private readonly canvas: HTMLCanvasElement;
+  private readonly attackButtonHandlers = new Map<HTMLButtonElement, EventListener>();
 
   public constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     window.addEventListener('keydown', this.handleKeyDown);
     this.canvas.addEventListener('pointerdown', this.handlePointerDown);
+    const buttons = document.querySelectorAll<HTMLButtonElement>('.attack-button');
+    buttons.forEach((button) => {
+      const direction = button.dataset.direction === 'left' ? -1 : 1;
+      const handler: EventListener = () => this.queueAttack(direction);
+      button.addEventListener('pointerdown', handler);
+      this.attackButtonHandlers.set(button, handler);
+    });
   }
 
   public consumeAttack(): AttackDirection | undefined {
@@ -17,6 +25,9 @@ export class Input {
   public destroy(): void {
     window.removeEventListener('keydown', this.handleKeyDown);
     this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
+    this.attackButtonHandlers.forEach((handler, button) => {
+      button.removeEventListener('pointerdown', handler);
+    });
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {

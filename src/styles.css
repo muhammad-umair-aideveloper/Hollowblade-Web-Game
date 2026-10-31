@@ -39,6 +39,36 @@ button {
   touch-action: none;
 }
 
+#touch-controls {
+  position: fixed;
+  right: 18px;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  left: 18px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.attack-button {
+  width: 74px;
+  height: 54px;
+  border: 1px solid rgba(185, 202, 232, 0.38);
+  border-radius: 4px;
+  color: #dce8ff;
+  background: rgba(15, 21, 34, 0.72);
+  cursor: pointer;
+  font-size: 1.15rem;
+  pointer-events: auto;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.attack-button:active {
+  color: #07090d;
+  background: #dce8ff;
+  transform: scale(0.94);
+}
+
 #hud {
   position: fixed;
   inset: 0;
@@ -229,6 +259,10 @@ button {
   #controls-hint {
     margin-top: 16px;
     font-size: 0.62rem;
+  }
+
+  #touch-controls {
+    bottom: max(12px, env(safe-area-inset-bottom));
   }
 
   .upgrade-list,

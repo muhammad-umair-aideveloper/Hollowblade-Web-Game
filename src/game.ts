@@ -1,4 +1,5 @@
 import { GAME_CONFIG } from './config/gameConfig';
+import { AudioSystem } from './audio/AudioSystem';
 import { PROGRESSION_CONFIG, type AbilityId, type UpgradeId } from './data/progressionConfig';
 import { GameLoop } from './core/gameLoop';
 import { Input } from './core/input';
@@ -17,6 +18,7 @@ export class Game {
   private readonly enemies = new EnemyPool();
   private readonly particles = new ParticlePool(640);
   private readonly save = new SaveSystem();
+  private readonly audio = new AudioSystem();
   private readonly loop: GameLoop;
   private readonly healthFill: HTMLElement;
   private readonly waveValue: HTMLElement;
@@ -77,6 +79,7 @@ export class Game {
     this.resize();
     this.reset();
     window.addEventListener('keydown', this.handleAbilityKey);
+    window.addEventListener('pointerdown', this.handleFirstInput, { once: true });
   }
 
   public start(): void {
@@ -92,6 +95,7 @@ export class Game {
     this.input.destroy();
     window.removeEventListener('resize', this.resize);
     window.removeEventListener('keydown', this.handleAbilityKey);
+    window.removeEventListener('pointerdown', this.handleFirstInput);
   }
 
   private readonly resize = (): void => {
@@ -207,6 +211,7 @@ export class Game {
             this.endRun();
             return;
           }
+          this.audio.damage();
           this.damageFlash = GAME_CONFIG.feel.damageFlashDuration;
           this.shake = GAME_CONFIG.feel.screenShakeOnHit;
         }
@@ -252,6 +257,8 @@ export class Game {
 
   private performAttack(direction: AttackDirection): void {
     this.player.attack(direction);
+    this.audio.unlock();
+    this.audio.attack();
     for (let index = 0; index < this.enemies.items.length; index += 1) {
       const enemy = this.enemies.items[index];
       if (!enemy.active || Math.sign(enemy.x) !== direction) {
@@ -271,9 +278,11 @@ export class Game {
           enemy.kind === 'boss' ? '#d9b4ff' : '#f2f5ff',
           enemy.kind === 'boss' ? 12 : 7,
         );
+        this.audio.hit();
         this.shake = GAME_CONFIG.feel.screenShakeOnHit;
         if (enemy.health <= 0) {
           enemy.deactivate();
+          this.audio.kill();
           this.combo += 1;
           this.comboTimer = GAME_CONFIG.feel.comboTimeout;
           this.score += enemy.score * Math.max(1, this.combo);
@@ -374,6 +383,7 @@ export class Game {
   }
 
   private readonly handleAbilityKey = (event: KeyboardEvent): void => {
+    this.audio.unlock();
     const abilityByKey: Record<string, AbilityId> = { q: 'nova', e: 'execution', r: 'storm' };
     const ability = abilityByKey[event.key.toLowerCase()];
     if (ability) {
@@ -381,11 +391,17 @@ export class Game {
     }
   };
 
+  private readonly handleFirstInput = (): void => {
+    this.audio.unlock();
+  };
+
   private activateAbility(id: AbilityId): void {
     if (!this.save.abilities[id] || this.abilityCooldowns[id] > 0 || this.gameOver) {
       return;
     }
     this.abilityCooldowns[id] = PROGRESSION_CONFIG.abilities[id].cooldown;
+    this.audio.unlock();
+    this.audio.ability();
     for (let index = 0; index < this.enemies.items.length; index += 1) {
       const enemy = this.enemies.items[index];
       if (!enemy.active || (id === 'execution' && enemy.health > enemy.maxHealth * 0.5)) {
