@@ -142,6 +142,66 @@ button {
   color: #aab5cb;
 }
 
+.currency-line {
+  margin: 0;
+  color: #e4c8ff !important;
+  letter-spacing: 0.1em;
+}
+
+.shop {
+  width: min(94vw, 680px);
+  max-height: 48vh;
+  overflow: auto;
+  padding: 8px 0;
+}
+
+.shop-title {
+  margin: 12px 0 8px !important;
+  color: #8e9bb8 !important;
+  font-size: 0.64rem;
+  letter-spacing: 0.18em;
+}
+
+.upgrade-list,
+.ability-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.shop button {
+  min-height: 58px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #49536a;
+  color: #dce8ff;
+  background: #101522;
+  cursor: pointer;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+}
+
+.shop button:hover:not(:disabled) {
+  border-color: #dce8ff;
+  background: #1b2538;
+}
+
+.shop button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.shop button strong,
+.shop button small {
+  display: block;
+}
+
+.shop button small {
+  margin-top: 5px;
+  color: #8e9bb8;
+  font-size: 0.58rem;
+}
+
 .overlay button {
   margin-top: 20px;
   padding: 13px 25px;
@@ -169,5 +229,10 @@ button {
   #controls-hint {
     margin-top: 16px;
     font-size: 0.62rem;
+  }
+
+  .upgrade-list,
+  .ability-list {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
