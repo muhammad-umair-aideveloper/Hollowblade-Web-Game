@@ -1,7 +1,9 @@
 import { GAME_CONFIG } from './config/gameConfig';
+import { PROGRESSION_CONFIG, type AbilityId, type UpgradeId } from './data/progressionConfig';
 import { GameLoop } from './core/gameLoop';
 import { Input } from './core/input';
 import type { AttackDirection, EnemyKind } from './core/types';
+import { SaveSystem } from './core/save';
 import { Enemy } from './entities/Enemy';
 import { EnemyPool } from './systems/EnemyPool';
 import { ParticlePool } from './systems/ParticlePool';
@@ -14,11 +16,15 @@ export class Game {
   private readonly player = new Player();
   private readonly enemies = new EnemyPool();
   private readonly particles = new ParticlePool(640);
+  private readonly save = new SaveSystem();
   private readonly loop: GameLoop;
   private readonly healthFill: HTMLElement;
   private readonly waveValue: HTMLElement;
   private readonly scoreValue: HTMLElement;
   private readonly comboValue: HTMLElement;
+  private readonly currencyValue: HTMLElement;
+  private readonly upgradeList: HTMLElement;
+  private readonly abilityList: HTMLElement;
   private readonly gameOverPanel: HTMLElement;
   private readonly finalScore: HTMLElement;
   private width = 0;
@@ -27,6 +33,7 @@ export class Game {
   private waveTimer = 0;
   private wave = 1;
   private score = 0;
+  private runCurrency = 0;
   private combo = 0;
   private comboTimer = 0;
   private gameOver = false;
@@ -36,6 +43,11 @@ export class Game {
   private damageFlash = 0;
   private slashTimer = 0;
   private slashDirection: AttackDirection = 1;
+  private readonly abilityCooldowns: Record<AbilityId, number> = {
+    nova: 0,
+    execution: 0,
+    storm: 0,
+  };
   private background: CanvasGradient | undefined;
 
   public constructor(canvas: HTMLCanvasElement) {
@@ -51,6 +63,9 @@ export class Game {
     this.waveValue = this.getElement('wave-value');
     this.scoreValue = this.getElement('score-value');
     this.comboValue = this.getElement('combo-value');
+    this.currencyValue = this.getElement('currency-value');
+    this.upgradeList = this.getElement('upgrade-list');
+    this.abilityList = this.getElement('ability-list');
     this.gameOverPanel = this.getElement('game-over');
     this.finalScore = this.getElement('final-score');
     this.loop = new GameLoop({
@@ -61,6 +76,7 @@ export class Game {
     window.addEventListener('resize', this.resize);
     this.resize();
     this.reset();
+    window.addEventListener('keydown', this.handleAbilityKey);
   }
 
   public start(): void {
@@ -75,6 +91,7 @@ export class Game {
     this.loop.stop();
     this.input.destroy();
     window.removeEventListener('resize', this.resize);
+    window.removeEventListener('keydown', this.handleAbilityKey);
   }
 
   private readonly resize = (): void => {
@@ -97,6 +114,7 @@ export class Game {
     this.gameOver = false;
     this.wave = 1;
     this.score = 0;
+    this.runCurrency = 0;
     this.combo = 0;
     this.comboTimer = 0;
     this.spawnTimer = 0;
@@ -106,8 +124,12 @@ export class Game {
     this.slowMotion = 0;
     this.damageFlash = 0;
     this.slashTimer = 0;
+    this.abilityCooldowns.nova = 0;
+    this.abilityCooldowns.execution = 0;
+    this.abilityCooldowns.storm = 0;
     this.enemies.deactivateAll();
     this.particles.clear();
+    this.applyUpgrades();
     this.player.reset(this.height * 0.62);
     this.gameOverPanel.classList.add('hidden');
     this.updateHud();
@@ -131,6 +153,9 @@ export class Game {
     this.waveTimer += scaledDelta;
     this.spawnTimer -= scaledDelta;
     this.comboTimer -= delta;
+    this.abilityCooldowns.nova = Math.max(0, this.abilityCooldowns.nova - delta);
+    this.abilityCooldowns.execution = Math.max(0, this.abilityCooldowns.execution - delta);
+    this.abilityCooldowns.storm = Math.max(0, this.abilityCooldowns.storm - delta);
     this.shake = Math.max(0, this.shake - delta);
     this.damageFlash = Math.max(0, this.damageFlash - delta);
     this.slashTimer = Math.max(0, this.slashTimer - delta);
@@ -234,7 +259,9 @@ export class Game {
       }
 
       if (Math.abs(enemy.x) <= GAME_CONFIG.player.attackRange) {
-        enemy.health -= GAME_CONFIG.player.attackDamage;
+        const critical = Math.random() < this.player.critChance;
+        enemy.health -=
+          GAME_CONFIG.player.attackDamage * this.player.damageMultiplier * (critical ? 2 : 1);
         this.hitStop = GAME_CONFIG.feel.hitStop;
         this.slashTimer = 0.12;
         this.slashDirection = direction;
@@ -250,6 +277,13 @@ export class Game {
           this.combo += 1;
           this.comboTimer = GAME_CONFIG.feel.comboTimeout;
           this.score += enemy.score * Math.max(1, this.combo);
+          this.runCurrency += PROGRESSION_CONFIG.currencyPerKill;
+          if (this.player.lifesteal > 0) {
+            this.player.health = Math.min(
+              this.player.maxHealth,
+              this.player.health + enemy.score * this.player.lifesteal,
+            );
+          }
           this.shake = GAME_CONFIG.feel.screenShakeOnKill;
           if (enemy.kind === 'boss' || this.combo >= 5) {
             this.slowMotion = GAME_CONFIG.feel.slowMotionDuration;
@@ -261,7 +295,11 @@ export class Game {
 
   private endRun(): void {
     this.gameOver = true;
+    this.runCurrency += PROGRESSION_CONFIG.deathBonus;
+    this.save.addCurrency(this.runCurrency);
     this.finalScore.textContent = String(this.score);
+    this.currencyValue.textContent = String(this.save.currency);
+    this.renderShop();
     this.gameOverPanel.classList.remove('hidden');
   }
 
@@ -270,6 +308,109 @@ export class Game {
     this.scoreValue.textContent = String(this.score);
     this.comboValue.textContent = `COMBO x${this.combo}`;
     this.comboValue.classList.toggle('active', this.combo > 1);
+  }
+
+  private applyUpgrades(): void {
+    const levels = this.save.upgrades;
+    const upgrades = PROGRESSION_CONFIG.upgrades;
+    this.player.applyUpgrade(
+      GAME_CONFIG.player.maxHealth + levels.health * upgrades.health.valuePerLevel,
+      1 + levels.damage * upgrades.damage.valuePerLevel,
+      1 - levels.attackSpeed * upgrades.attackSpeed.valuePerLevel,
+      levels.range * upgrades.range.valuePerLevel,
+      levels.crit * upgrades.crit.valuePerLevel,
+      levels.lifesteal * upgrades.lifesteal.valuePerLevel,
+    );
+  }
+
+  private renderShop(): void {
+    this.upgradeList.replaceChildren();
+    const upgradeIds: UpgradeId[] = [
+      'damage',
+      'attackSpeed',
+      'range',
+      'health',
+      'crit',
+      'lifesteal',
+    ];
+    for (let index = 0; index < upgradeIds.length; index += 1) {
+      const id = upgradeIds[index];
+      const config = PROGRESSION_CONFIG.upgrades[id];
+      const level = this.save.upgrades[id];
+      const cost = Math.floor(config.baseCost * config.costGrowth ** level);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.disabled = level >= config.maxLevel || this.save.currency < cost;
+      button.innerHTML = `<strong>${config.label} ${level}/${config.maxLevel}</strong><small>${config.description} · ${level >= config.maxLevel ? 'MAX' : `${cost} SHARDS`}</small>`;
+      button.addEventListener('click', () => {
+        if (level < config.maxLevel && this.save.spend(cost)) {
+          this.save.setUpgrade(id, level + 1);
+          this.currencyValue.textContent = String(this.save.currency);
+          this.renderShop();
+        }
+      });
+      this.upgradeList.append(button);
+    }
+
+    this.abilityList.replaceChildren();
+    const abilityIds: AbilityId[] = ['nova', 'execution', 'storm'];
+    for (let index = 0; index < abilityIds.length; index += 1) {
+      const id = abilityIds[index];
+      const config = PROGRESSION_CONFIG.abilities[id];
+      const unlocked = this.save.abilities[id];
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.disabled = unlocked || this.save.currency < config.cost;
+      button.innerHTML = `<strong>${config.label}</strong><small>${unlocked ? 'UNLOCKED · ' + this.abilityKey(id) : config.description + ' · ' + config.cost + ' SHARDS'}</small>`;
+      button.addEventListener('click', () => {
+        if (!unlocked && this.save.spend(config.cost)) {
+          this.save.unlockAbility(id);
+          this.currencyValue.textContent = String(this.save.currency);
+          this.renderShop();
+        }
+      });
+      this.abilityList.append(button);
+    }
+  }
+
+  private readonly handleAbilityKey = (event: KeyboardEvent): void => {
+    const abilityByKey: Record<string, AbilityId> = { q: 'nova', e: 'execution', r: 'storm' };
+    const ability = abilityByKey[event.key.toLowerCase()];
+    if (ability) {
+      this.activateAbility(ability);
+    }
+  };
+
+  private activateAbility(id: AbilityId): void {
+    if (!this.save.abilities[id] || this.abilityCooldowns[id] > 0 || this.gameOver) {
+      return;
+    }
+    this.abilityCooldowns[id] = PROGRESSION_CONFIG.abilities[id].cooldown;
+    for (let index = 0; index < this.enemies.items.length; index += 1) {
+      const enemy = this.enemies.items[index];
+      if (!enemy.active || (id === 'execution' && enemy.health > enemy.maxHealth * 0.5)) {
+        continue;
+      }
+      if (id === 'nova' && Math.abs(enemy.x) > GAME_CONFIG.player.attackRange * 1.8) {
+        continue;
+      }
+      if (id === 'storm' && Math.sign(enemy.x) !== this.player.previousAttackDirection) {
+        continue;
+      }
+      enemy.health = id === 'execution' ? 0 : enemy.health - GAME_CONFIG.player.attackDamage * 3;
+      this.particles.burst(this.width / 2 + enemy.x, enemy.y, '#e4c8ff', 10);
+      if (enemy.health <= 0) {
+        enemy.deactivate();
+        this.score += enemy.score;
+        this.runCurrency += PROGRESSION_CONFIG.currencyPerKill;
+      }
+    }
+    this.shake = GAME_CONFIG.feel.screenShakeOnKill;
+    this.slowMotion = GAME_CONFIG.feel.slowMotionDuration;
+  }
+
+  private abilityKey(id: AbilityId): string {
+    return { nova: 'Q', execution: 'E', storm: 'R' }[id];
   }
 
   private render(_alpha: number): void {

@@ -5,7 +5,7 @@ export class Player {
   public readonly x = 0;
   public y = 0;
   public health: number = GAME_CONFIG.player.maxHealth;
-  public maxHealth = GAME_CONFIG.player.maxHealth;
+  public maxHealth: number = GAME_CONFIG.player.maxHealth;
   public damageMultiplier = 1;
   public attackSpeedMultiplier = 1;
   public attackRangeBonus = 0;
