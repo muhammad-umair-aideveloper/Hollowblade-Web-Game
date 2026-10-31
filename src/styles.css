@@ -1,0 +1,173 @@
+:root {
+  color: #eef2ff;
+  background: #020306;
+  font-family: 'Segoe UI', sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100%;
+  overflow: hidden;
+  background: #020306;
+}
+
+body {
+  min-height: 100svh;
+}
+
+button {
+  font: inherit;
+}
+
+#game-shell,
+#game-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#game-canvas {
+  touch-action: none;
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  padding: 24px clamp(18px, 5vw, 72px);
+  pointer-events: none;
+}
+
+.hud-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.health-panel {
+  flex: 1;
+}
+
+.wave-panel,
+.score-panel {
+  min-width: 72px;
+  text-align: center;
+}
+
+.hud-label,
+.eyebrow {
+  color: #8e9bb8;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+}
+
+.health-track {
+  height: 8px;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid #49536a;
+  background: #161b28;
+}
+
+#health-fill {
+  width: 100%;
+  height: 100%;
+  background: #d7e5ff;
+  transition: width 120ms linear;
+}
+
+.wave-panel strong,
+.score-panel strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.15rem;
+}
+
+.combo-value {
+  margin: 20px auto 0;
+  color: #7887a5;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-align: center;
+  transition:
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.combo-value.active {
+  color: #e4c8ff;
+  transform: scale(1.12);
+}
+
+#controls-hint {
+  margin: 26px auto 0;
+  color: #66718a;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  background: rgba(2, 3, 6, 0.84);
+  text-align: center;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay h1 {
+  margin: 0;
+  font-size: clamp(2rem, 8vw, 5rem);
+  letter-spacing: 0.12em;
+}
+
+.overlay p {
+  color: #aab5cb;
+}
+
+.overlay button {
+  margin-top: 20px;
+  padding: 13px 25px;
+  border: 1px solid #c8d6ef;
+  color: #07090d;
+  background: #dce8ff;
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.overlay button:hover {
+  background: #ffffff;
+}
+
+@media (max-width: 600px) {
+  #hud {
+    padding-top: 16px;
+  }
+
+  .hud-row {
+    gap: 12px;
+  }
+
+  #controls-hint {
+    margin-top: 16px;
+    font-size: 0.62rem;
+  }
+}
