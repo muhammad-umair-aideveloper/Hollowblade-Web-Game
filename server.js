@@ -7,7 +7,6 @@ const players=new Map(),inputs=new Map(),ids=[{x:120,y:580},{x:1160,y:580},{x:34
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),now=()=>Date.now()/1000;
 function cleanName(n){return String(n||"Wanderer").replace(/[^\w -]/g,"").trim().slice(0,16)||"Wanderer"}
 function spawn(p){let s=ids[Math.floor(Math.random()*ids.length)];p.x=s.x;p.y=s.y;p.vx=p.vy=0;p.hp=5;p.soul=0;p.dead=0;p.attack=0;p.attackType=0;p.attackCd=0;p.dash=0;p.dashCd=0;p.channel=0}
-function body(p){return{x:p.x,y:p.y,w:PHYS.playerW,h:PHYS.playerH}}
 function hit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 function hurtbox(p){return{x:p.x-15,y:p.y-64,w:30,h:64}}
 function attackbox(p){let d=p.face||1,type=p.attackType; if(type===1)return{x:p.x-38,y:p.y-82,w:76,h:34};if(type===2)return{x:p.x+d*10-8,y:p.y-94,w:32,h:80};return{x:p.x+d*18+(d<0?-70:0),y:p.y-55,w:70,h:34}}
@@ -32,7 +31,7 @@ function update(p,dt){
 io.on("connection",s=>{
  s.emit("init",init(s.id));
  s.on("join",n=>{if(players.has(s.id))return;let p={id:s.id,name:cleanName(n),x:0,y:0,vx:0,vy:0,face:1,hp:5,soul:0,dead:0,attack:0,attackType:0,attackCd:0,dash:0,dashCd:0,channel:0,kills:0,deaths:0};spawn(p);players.set(s.id,p);inputs.set(s.id,{});s.emit("joined",view(p));broadcast()});
- s.on("input",i=>{if(players.has(s.id))inputs.set(s.id,{...i,left:!!i.left,right:!!i.right,jump:!!i.jump,down:!!i.down,heal:!!i.heal,attack:!!i.attack,dash:!!i.dash})});
+ s.on("input",i=>{if(players.has(s.id))inputs.set(s.id,{left:!!i.left,right:!!i.right,jump:!!i.jump,down:!!i.down,heal:!!i.heal,attack:!!i.attack,dash:!!i.dash,face:i.face<0?-1:1,dashDir:i.dashDir<0?-1:1,attackType:clamp(i.attackType|0,0,2)})});
  s.on("disconnect",()=>{players.delete(s.id);inputs.delete(s.id);broadcast()})
 });
 let last=now(),acc=0;setInterval(()=>{let t=now(),dt=Math.min(.05,t-last);last=t;acc+=dt;while(acc>=1/PHYS.tick){for(const p of players.values())update(p,1/PHYS.tick);acc-=1/PHYS.tick}},1000/PHYS.tick);
