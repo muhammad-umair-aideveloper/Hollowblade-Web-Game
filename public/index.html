@@ -1,16 +1,126 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hollow Blade</title><style>
-*{box-sizing:border-box}html,body{margin:0;background:#050914;color:#d9faff;font:14px system-ui, sans-serif;overflow:hidden}canvas{display:block;width:100vw;height:100vh;background:#050914}#title{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at center,#101d39aa,#03060dcc);z-index:4}#box{text-align:center;width:min(420px,90vw);padding:36px;border:1px solid #6be4ff55;background:#071022dd;box-shadow:0 0 60px #28d7ff22}h1{margin:0 0 4px;letter-spacing:12px;font-weight:300;color:#eafcff;text-shadow:0 0 18px #64eaff}p{color:#8aa3b5;margin:6px 0 22px}input,button{width:100%;padding:13px;border:1px solid #65eaff77;background:#09172a;color:#eaffff;font:inherit}button{margin-top:10px;cursor:pointer;background:#12344b}button:hover{background:#1b5165}#hud{position:fixed;inset:0;pointer-events:none;padding:18px;display:none;text-shadow:0 2px 3px #000}.top{display:flex;justify-content:space-between}.hp{color:#f4ffff;font-size:23px;letter-spacing:4px}.soul{width:180px;height:10px;border:1px solid #9defff;margin-top:8px}.soul i{display:block;height:100%;width:0;background:#9df8ff;box-shadow:0 0 12px #61eaff}.board{position:fixed;right:18px;top:55px;min-width:145px;color:#a6bbc9}.board b{color:#fff}.hint{position:fixed;bottom:15px;left:18px;color:#75909e;font-size:12px}.respawn{position:fixed;inset:0;display:grid;place-items:center;font-size:25px;color:#d8faff}</style></head><body><canvas id="c"></canvas><div id="title"><div id="box"><h1>HOLLOW BLADE</h1><p>Enter the abyss. Outlive the dark.</p><input id="name" maxlength="16" placeholder="Wanderer"><button id="join">ENTER THE ARENA</button></div></div><div id="hud"><div class="top"><div><div id="hp" class="hp"></div><div class="soul"><i id="soul"></i></div></div><div id="count"></div></div><div id="board" class="board"></div><div class="hint">A/D move · W/Space jump · S fast-fall · J/click slash · Shift/K dash · hold H heal</div><div id="respawn" class="respawn"></div></div><script src="/socket.io/socket.io.js"></script><script>
-const cv=document.querySelector("#c"),x=cv.getContext("2d"),title=document.querySelector("#title"),hud=document.querySelector("#hud"),nameEl=document.querySelector("#name"),join=document.querySelector("#join"),hpEl=document.querySelector("#hp"),soulEl=document.querySelector("#soul"),countEl=document.querySelector("#count"),boardEl=document.querySelector("#board"),respawnEl=document.querySelector("#respawn");let S,me,keys={},snap=[],prev=[],particles=[],slashes=[],shake=0,last=performance.now(),mouse=false;
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#050914">
+<title>Hollow Blade</title>
+<style>
+:root{color-scheme:dark;--ink:#050914;--panel:rgba(10,16,32,.75);--cyan:#83f5ff;--cyan-soft:#35bed0;--muted:#7791a5;--gold:#ffd978;--green:#7dffa6}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--ink);color:#e8fbff;font:14px/1.4 Inter,ui-sans-serif,system-ui,sans-serif;overflow:hidden}
+body{-webkit-tap-highlight-color:transparent}
+canvas{display:block;width:100vw;height:100vh;background:var(--ink)}
+button,input{font:inherit}
+button{touch-action:manipulation}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+#title{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,rgba(27,61,83,.42),rgba(3,6,12,.94) 70%);z-index:4}
+#title:before,#title:after{content:"";position:absolute;inset:12% 7%;border:1px solid rgba(115,225,238,.1);clip-path:polygon(0 10%,8% 0,92% 0,100% 10%,100% 90%,92% 100%,8% 100%,0 90%);pointer-events:none}
+#title:after{inset:14% 10%;border-color:rgba(255,217,120,.08);transform:scale(.97)}
+#box{position:relative;width:min(460px,88vw);padding:48px 42px 42px;text-align:center;border:1px solid rgba(123,234,244,.4);border-radius:4px;background:linear-gradient(145deg,rgba(10,24,43,.96),rgba(5,10,23,.94));box-shadow:0 24px 80px rgba(0,0,0,.5),0 0 42px rgba(48,205,224,.13);isolation:isolate}
+#box:before{content:"";position:absolute;inset:8px;border:1px solid rgba(126,224,233,.1);pointer-events:none}
+.crest{position:absolute;top:-18px;left:50%;width:36px;height:36px;transform:translateX(-50%) rotate(45deg);border:1px solid var(--cyan);background:#091526;box-shadow:0 0 20px rgba(94,235,246,.35)}
+.crest:after{content:"";position:absolute;inset:9px;border:1px solid var(--gold)}
+h1{position:relative;margin:0 0 8px;letter-spacing:.28em;font-size:clamp(28px,6vw,42px);font-weight:500;color:#effeff;text-shadow:0 0 18px rgba(104,239,250,.7)}
+.subtitle{margin:0 0 28px;color:#91acba;letter-spacing:.04em}
+.field{display:block;text-align:left;color:#7eb0bf;font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+input{display:block;width:100%;margin-top:8px;padding:13px 15px;border:1px solid rgba(121,230,240,.42);border-radius:3px;outline:0;background:rgba(3,10,23,.8);color:#efffff;transition:border-color .2s,box-shadow .2s}
+input::placeholder{color:#5d7180}
+input:focus-visible{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(131,245,255,.16),0 0 18px rgba(61,214,228,.18)}
+button{width:100%;margin-top:18px;padding:13px 16px;border:1px solid var(--cyan);border-radius:3px;cursor:pointer;background:linear-gradient(180deg,#1b586b,#12384d);color:#efffff;letter-spacing:.16em;font-size:12px;font-weight:700;transition:background .2s,box-shadow .2s,transform .2s}
+button:hover{background:linear-gradient(180deg,#27788a,#175269);box-shadow:0 0 24px rgba(76,226,240,.2)}
+button:active{transform:translateY(1px)}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+#hud{position:fixed;inset:0;pointer-events:none;display:none;padding:22px 24px;text-shadow:0 2px 3px #000}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.vitals{display:flex;align-items:center;gap:12px}
+.soul-wrap{position:relative;width:58px;height:58px;filter:drop-shadow(0 0 9px rgba(96,238,250,.55))}
+.soul-orb{position:absolute;inset:4px;border:3px solid #c7e2e5;border-radius:50%;overflow:hidden;background:rgba(6,23,37,.9);box-shadow:0 0 0 1px #526f78,inset 0 0 14px rgba(45,201,222,.35),0 0 16px rgba(76,226,240,.3)}
+.soul-orb:before{content:"";position:absolute;inset:5px;border:1px solid rgba(202,255,255,.55);border-radius:50%}
+.soul-fill{position:absolute;inset:auto 0 0;height:0%;background:linear-gradient(180deg,#c8ffff,#32c8db);box-shadow:0 -4px 14px #61eaff;transition:height .25s}
+.soul-fill:after{content:"";position:absolute;inset:-8px 0 auto;height:12px;background:rgba(226,255,255,.55);filter:blur(4px)}
+.soul-core{position:absolute;inset:18px;border-radius:50%;background:#c9ffff;box-shadow:0 0 10px 3px #86f7ff;opacity:.65}
+.soul-wrap.ready{animation:soulPulse 1.4s ease-in-out infinite}
+.soul-label{position:absolute;top:61px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:.14em;color:#9beef3}
+.masks{display:flex;gap:5px;margin-bottom:9px}
+.mask{position:relative;width:25px;height:31px;clip-path:polygon(23% 22%,4% 5%,12% 0,32% 12%,50% 4%,68% 12%,88% 0,96% 5%,77% 22%,90% 40%,86% 76%,63% 100%,37% 100%,14% 76%,10% 40%);background:linear-gradient(145deg,#f3ffff,#55dbe8);box-shadow:0 0 8px #7ceff5}
+.mask:before{content:"";position:absolute;left:5px;right:5px;top:14px;height:5px;background:#082333;border-radius:50%;box-shadow:-1px 0 #b8ffff,1px 0 #b8ffff}
+.mask:after{content:"";position:absolute;left:12px;top:9px;width:1px;height:21px;background:rgba(5,36,49,.6);transform:rotate(20deg)}
+.mask.lost{background:linear-gradient(145deg,#4d626d,#1b2935);box-shadow:0 0 0 1px #263e49;opacity:.7}
+.mask.lost:before{background:#111c25;box-shadow:none}
+.mask.lost:after{background:#12232e;transform:rotate(-30deg)}
+.pills{display:flex;gap:7px}
+.ability{display:grid;place-items:center;width:34px;height:34px;border:1px solid rgba(148,205,213,.38);border-radius:4px;background:linear-gradient(145deg,rgba(26,52,64,.92),rgba(7,18,30,.92));color:#7396a1;box-shadow:inset 0 0 8px rgba(94,235,242,.08)}
+.ability i{font-style:normal;font-size:17px;line-height:16px}
+.ability small{font-size:7px;line-height:8px;letter-spacing:.03em}
+.ability.ready{border-color:rgba(125,255,242,.85);color:#a7ffff;box-shadow:0 0 12px rgba(87,231,236,.22),inset 0 0 8px rgba(94,235,242,.16)}
+.leaderboard{min-width:208px;padding:12px 14px;border:1px solid rgba(100,220,234,.42);border-radius:8px;background:var(--panel);box-shadow:0 12px 35px rgba(0,0,0,.28),inset 0 0 20px rgba(40,154,177,.06);backdrop-filter:blur(8px)}
+.board-head{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid rgba(124,200,215,.18);color:#c9faff;font-size:10px;font-weight:700;letter-spacing:.16em}
+.online{display:flex;align-items:center;gap:5px;color:#a6bbc9;font-size:10px;letter-spacing:.04em}
+.online-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:dotPulse 1.8s infinite}
+.board-rows{padding-top:6px;color:#a6bbc9;font-size:11px}
+.board-row{display:flex;justify-content:space-between;gap:12px;padding:4px 6px;border-radius:3px}
+.board-row.local{color:#eaffff;background:rgba(89,220,233,.14);box-shadow:inset 2px 0 var(--cyan)}
+.board-row:first-child{color:var(--gold)}
+.board-row b{color:inherit;font-weight:700}
+.hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid rgba(112,201,215,.25);border-radius:5px;background:rgba(5,13,26,.76);color:#7897a4;white-space:nowrap;font-size:10px;letter-spacing:.03em;box-shadow:0 8px 24px rgba(0,0,0,.24)}
+.keycap{padding:2px 5px;border:1px solid rgba(159,216,224,.35);border-bottom-width:2px;border-radius:3px;background:rgba(22,43,59,.9);color:#c9faff;font-size:9px;font-weight:700}
+.respawn{position:fixed;inset:0;display:grid;place-items:center;font-size:24px;letter-spacing:.18em;color:#d8faff;text-shadow:0 0 18px #65eaff}
+@keyframes soulPulse{50%{filter:drop-shadow(0 0 18px rgba(142,255,255,.95))}}
+@keyframes dotPulse{50%{opacity:.45;transform:scale(.75)}}
+@media(max-width:620px){#box{padding:40px 24px 30px}.leaderboard{min-width:0;width:180px}.hint{right:12px;left:12px;transform:none;justify-content:center;gap:4px;font-size:9px}.keycap{padding:2px 3px}.hud{padding:14px}.top{gap:8px}.soul-wrap{width:50px;height:50px}.mask{width:21px;height:26px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Hollow Blade arena"></canvas>
+<div id="title">
+  <div id="box">
+    <div class="crest" aria-hidden="true"></div>
+    <h1>HOLLOW BLADE</h1>
+    <p class="subtitle">Enter the abyss. Outlive the dark.</p>
+    <label class="field" for="name">Wanderer name</label>
+    <input id="name" name="name" type="text" maxlength="16" autocomplete="nickname" placeholder="Choose a name…" spellcheck="false">
+    <button id="join" type="button">Enter the Arena</button>
+  </div>
+</div>
+<main id="hud" aria-label="Arena HUD">
+  <div class="top">
+    <section class="vitals" aria-label="Player vitals">
+      <div id="soulWrap" class="soul-wrap">
+        <div class="soul-orb"><div id="soul" class="soul-fill"></div><div class="soul-core"></div></div>
+        <span class="soul-label">SOUL</span>
+      </div>
+      <div>
+        <div id="hp" class="masks" aria-label="Health masks"></div>
+            <div class="pills"><span id="dashPill" class="ability" aria-label="Dash ready"><i aria-hidden="true">↯</i><small>Dash</small></span><span id="healPill" class="ability" aria-label="Heal ready"><i aria-hidden="true">✚</i><small>Heal</small></span></div>
+      </div>
+    </section>
+    <section class="leaderboard" aria-label="Leaderboard">
+      <div class="board-head"><span>ABYSSAL HUNT</span><span class="online"><i class="online-dot" aria-hidden="true"></i><span id="count">0 ONLINE</span></span></div>
+      <div id="board" class="board-rows" aria-live="polite"></div>
+    </section>
+  </div>
+  <div class="hint" aria-label="Controls">
+    <span class="keycap">A/D</span><span class="keycap">SPACE</span><span class="keycap">J/CLICK</span><span class="keycap">SHIFT</span><span class="keycap">H</span>
+  </div>
+  <div id="respawn" class="respawn" aria-live="polite"></div>
+</main>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const cv=document.querySelector("#c"),x=cv.getContext("2d"),title=document.querySelector("#title"),hud=document.querySelector("#hud"),nameEl=document.querySelector("#name"),join=document.querySelector("#join"),hpEl=document.querySelector("#hp"),soulEl=document.querySelector("#soul"),soulWrap=document.querySelector("#soulWrap"),dashPill=document.querySelector("#dashPill"),healPill=document.querySelector("#healPill"),countEl=document.querySelector("#count"),boardEl=document.querySelector("#board"),respawnEl=document.querySelector("#respawn");let S,me,keys={},snap=[],prev=[],particles=[],slashes=[],shake=0,last=performance.now(),mouse=false;
 const socket=io(),lerp=(a,b,t)=>a+(b-a)*t,resize=()=>{cv.width=innerWidth*devicePixelRatio;cv.height=innerHeight*devicePixelRatio;x.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)},key=e=>{keys[e.key.toLowerCase()]=e.type==="keydown";if([" ","arrowup","arrowdown","arrowleft","arrowright"].includes(e.key.toLowerCase()))e.preventDefault()};addEventListener("resize",resize);addEventListener("keydown",key);addEventListener("keyup",key);resize();
 join.onclick=()=>{socket.emit("join",nameEl.value);title.style.display="none";hud.style.display="block"};nameEl.onkeydown=e=>{if(e.key==="Enter")join.click()};addEventListener("mousedown",()=>mouse=true);addEventListener("mouseup",()=>mouse=false);
 socket.on("init",v=>S=v);socket.on("joined",p=>me=p);socket.on("state",v=>{prev=snap;snap=v.players;if(me){let q=snap.find(a=>a.id===me.id);if(q)me={...me,...q}}});socket.on("hit",v=>{shake=8;slashes.push({x:v.x,y:v.y,t:.22});for(let i=0;i<16;i++)particles.push({x:v.x,y:v.y,vx:(Math.random()-.5)*300,vy:(Math.random()-.8)*300,t:.5,c:"#dff"});});
 function input(){let left=keys.a||keys.arrowleft,right=keys.d||keys.arrowright,face=right?1:left?-1:(me?.face||1),attack=keys.j||mouse,dash=keys.shift||keys.k,jump=keys.w||keys.arrowup||keys[" "];return{left,right,down:keys.s||keys.arrowdown,jump,attack,attackType:keys.s?2:keys.w||keys.arrowup?1:0,face,heal:keys.h,dash,dashDir:face}}let sent={};
 setInterval(()=>{if(!me)return;let i=input(),jump=i.jump,attack=i.attack;i.jump=jump&&!sent.jump?1:0;i.attack=attack&&!sent.attack?1:0;sent={jump,attack};socket.emit("input",i)},1000/60);
-function world(){return{sx:innerWidth/2-(me?.x||640),sy:innerHeight*.72-(me?.y||650)}}function draw(){
- let t=performance.now(),dt=Math.min(.04,(t-last)/1000);last=t;let w=world();x.clearRect(0,0,innerWidth,innerHeight);let g=x.createLinearGradient(0,0,0,innerHeight);g.addColorStop(0,"#050817");g.addColorStop(1,"#0b1830");x.fillStyle=g;x.fillRect(0,0,innerWidth,innerHeight);x.save();x.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.88;
- if(S){for(let i=0;i<30;i++){let px=(i*173%1280)+w.sx,py=(i*91%600)+w.sy;x.fillStyle=i%3?"#182b4a":"#284a66";x.fillRect(px,py,2,2)}for(const r of S.platforms){x.fillStyle="#18253b";x.fillRect(r.x+w.sx,r.y+w.sy,r.w,r.h);x.strokeStyle="#42647b";x.strokeRect(r.x+w.sx,r.y+w.sy,r.w,r.h);for(let z=r.x+15;z<r.x+r.w;z+=34){x.strokeStyle="#223c54";x.beginPath();x.moveTo(z+w.sx,r.y+w.sy);x.lineTo(z-12+w.sx,r.y+r.h+w.sy);x.stroke()}}
-  for(const p of snap){let q=p.id===me?.id?me:p,a=p.id===me?.id?1:.18;let old=prev.find(z=>z.id===p.id)||p,px=lerp(old.x,q.x,a)+w.sx,py=lerp(old.y,q.y,a)+w.sy;if(q.dead)continue;drawPlayer(px,py,q,p.id===me?.id);if(q.attack>0)drawSlash(px,py,q)}
- }x.restore();particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=500*dt;p.t-=dt;x.globalAlpha=Math.max(0,p.t*2);x.fillStyle=p.c;x.fillRect(p.x+w.sx,p.y+w.sy,3,3)});x.globalAlpha=1;particles=particles.filter(p=>p.t>0);slashes=slashes.filter(a=>a.t>0);slashes.forEach(a=>a.t-=dt);if(me){hpEl.textContent="⬡".repeat(me.hp)+"◇".repeat(5-me.hp);soulEl.style.width=me.soul+"%";respawnEl.textContent=me.dead?"RETURNING IN "+Math.ceil(me.dead):me.channel?"CHANNELING SOUL":"";countEl.textContent="SURVIVORS "+snap.filter(p=>!p.dead).length;boardEl.innerHTML="<b>LEADERBOARD</b><br>"+[...snap].sort((a,b)=>b.kills-a.kills).map(p=>`${p.name} ${p.kills}/${p.deaths}`).join("<br>")}requestAnimationFrame(draw)}
-function drawPlayer(px,py,p,local){x.save();x.translate(px,py);x.globalAlpha=p.dead?0.25:1;x.fillStyle="#07101d";x.beginPath();x.moveTo(-20,0);x.quadraticCurveTo(-35,20,-28,45);x.lineTo(28,45);x.quadraticCurveTo(35,20,20,0);x.fill();x.fillStyle=local?"#a8f8ff":"#b9dbe5";x.beginPath();x.arc(0,-45,17,0,Math.PI*2);x.fill();x.fillStyle="#081323";x.beginPath();x.moveTo(-18,-45);x.lineTo(-27,-62);x.lineTo(-8,-53);x.moveTo(18,-45);x.lineTo(27,-62);x.lineTo(8,-53);x.fill();x.fillStyle="#dfffff";x.fillRect(-8,-45,4,5);x.fillRect(4,-45,4,5);x.restore()}
+function world(){return{sx:innerWidth/2-(me?.x||640),sy:innerHeight*.72-(me?.y||650)}}
+function drawCavern(w){let g=x.createLinearGradient(0,0,0,innerHeight);g.addColorStop(0,"#03060d");g.addColorStop(.48,"#0a1623");g.addColorStop(1,"#173244");x.fillStyle=g;x.fillRect(0,0,innerWidth,innerHeight);for(let i=0;i<5;i++){let px=(i*287%1250)+w.sx*.12,base=innerHeight*.72,wide=150+(i%2)*35;x.fillStyle=i%2?"#0b1725":"#101f2d";x.beginPath();x.moveTo(px-wide,base);x.quadraticCurveTo(px-wide*.82,base-245,px,base-330);x.quadraticCurveTo(px+wide*.82,base-245,px+wide,base);x.closePath();x.fill();x.strokeStyle="rgba(82,137,148,.24)";x.lineWidth=3;x.stroke();x.strokeStyle="rgba(4,9,16,.55)";x.lineWidth=12;x.beginPath();x.moveTo(px-wide+12,base);x.quadraticCurveTo(px-wide*.72,base-220,px,base-302);x.quadraticCurveTo(px+wide*.72,base-220,px+wide-12,base);x.stroke()}for(let i=0;i<14;i++){let px=(i*113%1200)+w.sx*.2,tip=85+(i%5)*30;x.fillStyle=i%2?"#111f2a":"#0d1925";x.beginPath();x.moveTo(px-12,0);x.lineTo(px+18,0);x.lineTo(px+4,tip);x.lineTo(px-5,tip+24);x.closePath();x.fill()}for(let i=0;i<22;i++){let px=(i*173%1280)+w.sx,py=(i*91%590)+w.sy;x.fillStyle=i%4?"#315064":"#9afcff";x.globalAlpha=i%4?.42:.72;x.beginPath();x.arc(px,py,1+(i%3),0,Math.PI*2);x.fill()}x.globalAlpha=1;for(let i=0;i<8;i++){let px=(i*211%1200)+w.sx,py=(i*73%300)+w.sy+70;x.save();x.translate(px,py);x.rotate(i%2?-0.4:0.4);x.fillStyle="#6ceff2";x.shadowBlur=15;x.shadowColor="#4ddce8";x.beginPath();x.moveTo(0,-14);x.lineTo(8,3);x.lineTo(0,17);x.lineTo(-8,3);x.closePath();x.fill();x.fillStyle="#a9ffff";x.fillRect(-2,-8,3,11);x.restore()}let mist=x.createLinearGradient(0,innerHeight*.68,0,innerHeight);mist.addColorStop(0,"rgba(48,206,214,0)");mist.addColorStop(.5,"rgba(40,183,197,.16)");mist.addColorStop(1,"rgba(35,149,180,.46)");x.fillStyle=mist;x.fillRect(0,innerHeight*.65,innerWidth,innerHeight*.35)}
+function drawPlatform(r,w){let px=r.x+w.sx,py=r.y+w.sy;x.fillStyle="#131f34";x.fillRect(px,py,r.w,r.h);x.fillStyle="#1d3046";x.fillRect(px,py,r.w,5);x.strokeStyle="#6ce2e7";x.shadowBlur=9;x.shadowColor="#38c9d5";x.strokeRect(px,py,r.w,1);x.shadowBlur=0;x.strokeStyle="#2e4a60";for(let z=r.x+15;z<r.x+r.w;z+=34){x.beginPath();x.moveTo(z+w.sx,py+7);x.lineTo(z-12+w.sx,py+r.h+w.sy-py);x.stroke()}x.fillStyle="rgba(82,225,230,.16)";x.fillRect(px,py-2,r.w,2)}
+function updateHud(){let hp=Math.max(0,me.hp||0);hpEl.innerHTML="";for(let i=0;i<5;i++){let mask=document.createElement("span");mask.className="mask"+(i>=hp?" lost":"");mask.setAttribute("aria-label",i<hp?"Mask full":"Mask lost");hpEl.appendChild(mask)}soulEl.style.height=Math.max(0,Math.min(100,me.soul||0))+"%";soulWrap.classList.toggle("ready",(me.soul||0)>=100);dashPill.classList.toggle("ready",!me.dashCooldown);healPill.classList.toggle("ready",!me.channel);countEl.textContent=(snap.filter(p=>!p.dead).length)+" ONLINE";let rows=[...snap].sort((a,b)=>b.kills-a.kills).map((p,i)=>`<div class="board-row${p.id===me.id?" local":""}"><span>${i===0?"#1 ":""}${p.name}</span><b>${p.kills}/${p.deaths}</b></div>`);boardEl.innerHTML=rows.join("")}
+function draw(){let t=performance.now(),dt=Math.min(.04,(t-last)/1000);last=t;let w=world();x.clearRect(0,0,innerWidth,innerHeight);x.save();x.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.88;drawCavern(w);if(S){for(const r of S.platforms)drawPlatform(r,w);for(const p of snap){let q=p.id===me?.id?me:p,a=p.id===me?.id?1:.18,old=prev.find(z=>z.id===p.id)||p,px=lerp(old.x,q.x,a)+w.sx,py=lerp(old.y,q.y,a)+w.sy;if(q.dead)continue;drawPlayer(px,py,q,p.id===me?.id);if(q.attack>0)drawSlash(px,py,q)}}x.restore();particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=500*dt;p.t-=dt;x.globalAlpha=Math.max(0,p.t*2);x.fillStyle=p.c;x.fillRect(p.x+w.sx,p.y+w.sy,3,3)});x.globalAlpha=1;particles=particles.filter(p=>p.t>0);slashes=slashes.filter(a=>a.t>0);slashes.forEach(a=>a.t-=dt);if(me){updateHud();respawnEl.textContent=me.dead?"RETURNING IN "+Math.ceil(me.dead):me.channel?"CHANNELING SOUL":""}requestAnimationFrame(draw)}
+function drawPlayer(px,py,p,local){x.save();x.translate(px,py);x.globalAlpha=p.dead?.25:1;let side=p.face<0?-1:1;let cape=x.createLinearGradient(-48,0,26,45);cape.addColorStop(0,"rgba(26,73,83,.12)");cape.addColorStop(.55,"rgba(8,25,36,.94)");cape.addColorStop(1,"#050b15");x.fillStyle=cape;x.beginPath();x.moveTo(-10,-29);x.bezierCurveTo(-30,-25,-38,-4,-57,8);x.lineTo(-42,14);x.quadraticCurveTo(-58,27,-66,40);x.lineTo(-43,35);x.quadraticCurveTo(-53,49,-62,56);x.quadraticCurveTo(-31,53,-16,42);x.lineTo(20,45);x.quadraticCurveTo(33,22,18,-20);x.closePath();x.fill();x.strokeStyle=local?"#61e4ea":"#3e6974";x.lineWidth=1.5;x.stroke();x.strokeStyle="rgba(107,238,238,.5)";x.beginPath();x.moveTo(-25,-20);x.quadraticCurveTo(-38,14,-48,37);x.moveTo(-14,-12);x.quadraticCurveTo(-25,22,-34,47);x.stroke();x.fillStyle="#07111b";x.beginPath();x.moveTo(-18,-31);x.quadraticCurveTo(-28,-7,-22,27);x.quadraticCurveTo(-16,39,0,44);x.lineTo(19,43);x.quadraticCurveTo(30,18,17,-29);x.closePath();x.fill();x.strokeStyle=local?"#9dfbff":"#5d8991";x.shadowBlur=local?10:0;x.shadowColor="#5de8ef";x.stroke();x.shadowBlur=0;x.fillStyle="#0a1520";x.beginPath();x.moveTo(-15,-31);x.lineTo(-8,-39);x.lineTo(0,-34);x.lineTo(8,-39);x.lineTo(15,-31);x.lineTo(13,-7);x.lineTo(-13,-7);x.closePath();x.fill();x.fillStyle=local?"#d8ffff":"#b8d7dc";x.beginPath();x.moveTo(-17,-32);x.lineTo(-8,-43);x.lineTo(-3,-34);x.lineTo(3,-34);x.lineTo(8,-43);x.lineTo(17,-32);x.lineTo(12,-5);x.lineTo(-12,-5);x.closePath();x.fill();x.fillStyle="#071321";x.fillRect(-12,-27,24,13);x.fillStyle="#a9fbff";x.shadowBlur=local?12:5;x.shadowColor="#72f4fa";x.fillRect(-9,-23,5,3);x.fillRect(4,-23,5,3);x.shadowBlur=0;x.strokeStyle="#050b13";x.lineWidth=3;x.beginPath();x.moveTo(-10,43);x.lineTo(-13,56);x.moveTo(9,43);x.lineTo(13,56);x.stroke();x.lineCap="round";x.save();x.translate(side*20,3);x.rotate(side*-.48);x.strokeStyle="#dffeff";x.lineWidth=3;x.shadowBlur=12;x.shadowColor="#66eaf2";x.beginPath();x.moveTo(0,8);x.lineTo(side*38,-27);x.stroke();x.strokeStyle="#6ce4ea";x.lineWidth=1;x.beginPath();x.moveTo(side*4,5);x.lineTo(side*-7,-3);x.stroke();x.restore();if(p.name){x.font="10px system-ui";x.textAlign="center";x.fillStyle=local?"#bafcff":"#8daeb9";x.globalAlpha=.85;x.fillText(p.name,0,-54)}x.restore()}
 function drawSlash(px,py,p){if(p.attack<=0)return;x.save();x.translate(px,py-45);x.rotate(p.face<0?Math.PI:0);x.strokeStyle="#f5ffff";x.lineWidth=5;x.shadowBlur=15;x.shadowColor="#bfffff";x.beginPath();x.arc(0,0,55,-.8,.7);x.stroke();x.restore()}requestAnimationFrame(draw);
-</script></body></html>
+</script>
+</body>
+</html>
